@@ -19,7 +19,7 @@ import {
   RotateCcw,
 } from "lucide-react"
 import type { MCQQuestion } from "./mcq-parser"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Alert } from "@/components/ui/alert"
 
 interface TestResult {
   questionId: string
@@ -269,24 +269,29 @@ export function TestInterface({ test, onTestComplete, onExit }: TestInterfacePro
           {/* Feedback */}
           {showFeedback && (
             <Alert className={currentResult.isCorrect ? "border-green-500" : "border-red-500"}>
-              <div className="flex items-center gap-2">
+              <div className="flex items-start gap-2">
                 {currentResult.isCorrect ? (
-                  <CheckCircle className="h-4 w-4 text-green-600" />
+                  <CheckCircle className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
                 ) : (
-                  <XCircle className="h-4 w-4 text-red-600" />
+                  <XCircle className="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" />
                 )}
-                <AlertDescription>
-                  <strong>{currentResult.isCorrect ? "Correct!" : "Incorrect"}</strong>
+                <div className="space-y-1 flex-1">
+                  <div>
+                    <strong className="text-base">{currentResult.isCorrect ? "Correct!" : "Incorrect"}</strong>
+                  </div>
                   {!currentResult.isCorrect && (
-                    <span> The correct answer is {String.fromCharCode(65 + currentQuestion.correctAnswer)}.</span>
+                    <div className="text-sm">
+                      The correct answer is <strong>{String.fromCharCode(65 + currentQuestion.correctAnswer)}</strong>.
+                    </div>
                   )}
-                </AlertDescription>
+                </div>
               </div>
               {currentQuestion.explanation && (
-                <div className="mt-2 pt-2 border-t">
-                  <p className="text-sm whitespace-pre-line">
-                    <strong>Explanation:</strong> {currentQuestion.explanation}
-                  </p>
+                <div className="mt-3 pt-3 border-t border-border/50">
+                  <div className="text-sm space-y-1">
+                    <div className="font-medium">Explanation:</div>
+                    <div className="whitespace-pre-line leading-relaxed">{currentQuestion.explanation}</div>
+                  </div>
                 </div>
               )}
             </Alert>
