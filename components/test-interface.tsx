@@ -385,16 +385,16 @@ export function TestInterface({ test, onTestComplete, onExit, existingNotes = {}
                 ) : (
                   <XCircle className="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" />
                 )}
-                <div className="flex-1">
-                  <div className="mb-2">
-                    <span className="font-semibold text-base">
+                <div className="flex-1 space-y-2">
+                  <div>
+                    <div className="font-semibold text-base mb-1">
                       {currentResult.isCorrect ? "Correct!" : "Incorrect"}
-                    </span>
+                    </div>
                     {!currentResult.isCorrect && (
-                      <span className="ml-2 text-sm">
+                      <div className="text-sm">
                         The correct answer is <strong>{String.fromCharCode(65 + currentQuestion.correctAnswer)}</strong>
                         .
-                      </span>
+                      </div>
                     )}
                   </div>
 
