@@ -165,6 +165,39 @@ export default function HomePage() {
     }
   }
 
+  const exportSingleTest = (test: Test) => {
+    try {
+      const data = {
+        test,
+        exportedAt: new Date(),
+        type: "single-test",
+      }
+
+      const filename = `${test.name.replace(/[^a-z0-9]/gi, "_").toLowerCase()}-${new Date().toISOString().split("T")[0]}.json`
+
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+
+      toast({
+        title: "Export Successful",
+        description: `Test "${test.name}" exported successfully`,
+      })
+    } catch (error) {
+      toast({
+        title: "Export Failed",
+        description: "Failed to export test. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
   const importData = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
@@ -174,7 +207,17 @@ export default function HomePage() {
       try {
         const importedData = JSON.parse(e.target?.result as string)
 
-        if (importedData.type === "tests" && importedData.tests) {
+        if (importedData.type === "single-test" && importedData.test) {
+          const newTest = {
+            ...importedData.test,
+            createdAt: new Date(importedData.test.createdAt),
+          }
+          setTests((prev) => [...prev, newTest])
+          toast({
+            title: "Import Successful",
+            description: `Test "${newTest.name}" imported successfully`,
+          })
+        } else if (importedData.type === "tests" && importedData.tests) {
           const newTests = importedData.tests.map((test: any) => ({
             ...test,
             createdAt: new Date(test.createdAt),
@@ -365,7 +408,14 @@ export default function HomePage() {
         ) : (
           <>
             {activeTab === "dashboard" && <DashboardView studyNotes={studyNotes} testHistory={testHistory} />}
-            {activeTab === "tests" && <TestsView tests={tests} setTests={setTests} onStartTest={setActiveTest} />}
+            {activeTab === "tests" && (
+              <TestsView
+                tests={tests}
+                setTests={setTests}
+                onStartTest={setActiveTest}
+                onExportTest={exportSingleTest}
+              />
+            )}
             {activeTab === "notes" && <NotesView studyNotes={studyNotes} setStudyNotes={setStudyNotes} />}
             {activeTab === "review" && (
               <ReviewDashboard
@@ -477,13 +527,16 @@ function TestsView({
   tests,
   setTests,
   onStartTest,
+  onExportTest,
 }: {
   tests: Test[]
   setTests: (tests: Test[]) => void
   onStartTest: (test: Test) => void
+  onExportTest: (test: Test) => void
 }) {
   const [showParser, setShowParser] = useState(false)
   const [editingTest, setEditingTest] = useState<Test | null>(null)
+  const { toast } = useToast()
 
   const handleTestCreated = (questions: MCQQuestion[], testName: string) => {
     const newTest: Test = {
@@ -579,6 +632,10 @@ function TestsView({
                     </CardDescription>
                   </div>
                   <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={() => onExportTest(test)} className="gap-2">
+                      <Download className="h-4 w-4" />
+                      Export
+                    </Button>
                     <Button
                       variant="outline"
                       size="sm"

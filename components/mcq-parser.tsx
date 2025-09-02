@@ -336,7 +336,7 @@ export function MCQParser({ onTestCreated, existingTest }: MCQParserProps) {
     const lines = text.split("\n").filter((line) => line.trim())
 
     let currentQuestion: Partial<MCQQuestion> = {}
-    let questionCounter = 0
+    let questionCounter = Date.now()
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim()
