@@ -7,6 +7,7 @@ import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import {
   CheckCircle,
   XCircle,
@@ -17,6 +18,7 @@ import {
   Clock,
   FileText,
   RotateCcw,
+  Shuffle,
 } from "lucide-react"
 import type { MCQQuestion } from "./mcq-parser"
 import { Alert } from "@/components/ui/alert"
@@ -38,32 +40,141 @@ interface TestInterfaceProps {
   }
   onTestComplete: (results: TestResult[]) => void
   onExit: () => void
+  existingNotes?: { [questionId: string]: string } // Added prop for existing notes
 }
 
-export function TestInterface({ test, onTestComplete, onExit }: TestInterfaceProps) {
+function shuffleArray<T>(array: T[]): T[] {
+  const shuffled = [...array]
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+  }
+  return shuffled
+}
+
+function createShuffledOptions(
+  options: string[],
+  correctAnswer: number,
+): { options: string[]; newCorrectAnswer: number } {
+  const optionsWithIndex = options.map((option, index) => ({ option, originalIndex: index }))
+  const shuffled = shuffleArray(optionsWithIndex)
+
+  return {
+    options: shuffled.map((item) => item.option),
+    newCorrectAnswer: shuffled.findIndex((item) => item.originalIndex === correctAnswer),
+  }
+}
+
+export function TestInterface({ test, onTestComplete, onExit, existingNotes = {} }: TestInterfaceProps) {
+  const [randomizeQuestions, setRandomizeQuestions] = useState(false)
+  const [randomizeOptions, setRandomizeOptions] = useState(false)
+  const [testStarted, setTestStarted] = useState(false)
+
+  const [shuffledQuestions, setShuffledQuestions] = useState<MCQQuestion[]>([])
+  const [questionMapping, setQuestionMapping] = useState<number[]>([])
+
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
-  const [results, setResults] = useState<TestResult[]>(() =>
-    test.questions.map((q) => ({
-      questionId: q.id,
-      selectedAnswer: null,
-      isCorrect: false,
-      timeSpent: 0,
-      isBookmarked: false,
-      note: "",
-    })),
-  )
+  const [results, setResults] = useState<TestResult[]>([])
   const [showFeedback, setShowFeedback] = useState(false)
   const [startTime, setStartTime] = useState(Date.now())
   const [questionStartTime, setQuestionStartTime] = useState(Date.now())
   const [isTestComplete, setIsTestComplete] = useState(false)
 
-  const currentQuestion = test.questions[currentQuestionIndex]
+  const initializeTest = () => {
+    let questionsToUse = [...test.questions]
+    let mapping = test.questions.map((_, index) => index)
+
+    if (randomizeQuestions) {
+      const shuffledData = shuffleArray(test.questions.map((q, index) => ({ question: q, originalIndex: index })))
+      questionsToUse = shuffledData.map((item) => item.question)
+      mapping = shuffledData.map((item) => item.originalIndex)
+    }
+
+    if (randomizeOptions) {
+      questionsToUse = questionsToUse.map((q) => {
+        const { options, newCorrectAnswer } = createShuffledOptions(q.options, q.correctAnswer)
+        return { ...q, options, correctAnswer: newCorrectAnswer }
+      })
+    }
+
+    setShuffledQuestions(questionsToUse)
+    setQuestionMapping(mapping)
+
+    const initialResults = questionsToUse.map((q, index) => {
+      const originalQuestionId = test.questions[mapping[index]]?.id || q.id
+      return {
+        questionId: originalQuestionId,
+        selectedAnswer: null,
+        isCorrect: false,
+        timeSpent: 0,
+        isBookmarked: false,
+        note: existingNotes[originalQuestionId] || "",
+      }
+    })
+
+    setResults(initialResults)
+    setTestStarted(true)
+    setStartTime(Date.now())
+    setQuestionStartTime(Date.now())
+  }
+
+  const currentQuestion = shuffledQuestions[currentQuestionIndex]
   const currentResult = results[currentQuestionIndex]
-  const progress = ((currentQuestionIndex + 1) / test.questions.length) * 100
+  const progress = testStarted ? ((currentQuestionIndex + 1) / shuffledQuestions.length) * 100 : 0
 
   useEffect(() => {
-    setQuestionStartTime(Date.now())
-  }, [currentQuestionIndex])
+    if (testStarted) {
+      setQuestionStartTime(Date.now())
+    }
+  }, [currentQuestionIndex, testStarted])
+
+  if (!testStarted) {
+    return (
+      <div className="max-w-2xl mx-auto space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Shuffle className="h-5 w-5" />
+              Test Setup
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div>
+              <h3 className="text-lg font-semibold mb-2">{test.name}</h3>
+              <p className="text-muted-foreground">{test.questions.length} questions</p>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <Label htmlFor="randomize-questions">Randomize Question Order</Label>
+                  <p className="text-sm text-muted-foreground">Questions will appear in random order</p>
+                </div>
+                <Switch id="randomize-questions" checked={randomizeQuestions} onCheckedChange={setRandomizeQuestions} />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <Label htmlFor="randomize-options">Randomize Answer Options</Label>
+                  <p className="text-sm text-muted-foreground">Answer choices will appear in random order</p>
+                </div>
+                <Switch id="randomize-options" checked={randomizeOptions} onCheckedChange={setRandomizeOptions} />
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <Button onClick={initializeTest} className="flex-1">
+                Start Test
+              </Button>
+              <Button variant="outline" onClick={onExit}>
+                Cancel
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   const handleAnswerSelect = (answerIndex: number) => {
     if (currentResult.selectedAnswer !== null) return // Already answered
@@ -93,7 +204,7 @@ export function TestInterface({ test, onTestComplete, onExit }: TestInterfacePro
   }
 
   const goToNextQuestion = () => {
-    if (currentQuestionIndex < test.questions.length - 1) {
+    if (currentQuestionIndex < shuffledQuestions.length - 1) {
       setCurrentQuestionIndex((prev) => prev + 1)
       setShowFeedback(false)
     } else {
@@ -119,25 +230,24 @@ export function TestInterface({ test, onTestComplete, onExit }: TestInterfacePro
   }
 
   const restartTest = () => {
+    setTestStarted(false)
     setCurrentQuestionIndex(0)
-    setResults(
-      test.questions.map((q) => ({
-        questionId: q.id,
-        selectedAnswer: null,
-        isCorrect: false,
-        timeSpent: 0,
-        isBookmarked: false,
-        note: "",
-      })),
-    )
+    setResults([])
+    setShuffledQuestions([])
+    setQuestionMapping([])
     setShowFeedback(false)
-    setStartTime(Date.now())
-    setQuestionStartTime(Date.now())
     setIsTestComplete(false)
   }
 
   if (isTestComplete) {
-    return <TestSummary test={test} results={results} onFinish={finishTest} onRestart={restartTest} />
+    return (
+      <TestSummary
+        test={{ ...test, questions: shuffledQuestions }}
+        results={results}
+        onFinish={finishTest}
+        onRestart={restartTest}
+      />
+    )
   }
 
   return (
@@ -147,7 +257,7 @@ export function TestInterface({ test, onTestComplete, onExit }: TestInterfacePro
         <div>
           <h2 className="text-2xl font-bold text-foreground">{test.name}</h2>
           <p className="text-muted-foreground">
-            Question {currentQuestionIndex + 1} of {test.questions.length}
+            Question {currentQuestionIndex + 1} of {shuffledQuestions.length}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -170,7 +280,7 @@ export function TestInterface({ test, onTestComplete, onExit }: TestInterfacePro
       <Card>
         <CardContent className="pt-4">
           <div className="flex flex-wrap gap-2">
-            {test.questions.map((_, index) => {
+            {shuffledQuestions.map((_, index) => {
               const result = results[index]
               const isCurrent = index === currentQuestionIndex
               const isAnswered = result.selectedAnswer !== null
@@ -275,25 +385,31 @@ export function TestInterface({ test, onTestComplete, onExit }: TestInterfacePro
                 ) : (
                   <XCircle className="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" />
                 )}
-                <div className="space-y-1 flex-1">
-                  <div>
-                    <strong className="text-base">{currentResult.isCorrect ? "Correct!" : "Incorrect"}</strong>
+                <div className="flex-1">
+                  <div className="mb-2">
+                    <span className="font-semibold text-base">
+                      {currentResult.isCorrect ? "Correct!" : "Incorrect"}
+                    </span>
+                    {!currentResult.isCorrect && (
+                      <span className="ml-2 text-sm">
+                        The correct answer is <strong>{String.fromCharCode(65 + currentQuestion.correctAnswer)}</strong>
+                        .
+                      </span>
+                    )}
                   </div>
-                  {!currentResult.isCorrect && (
-                    <div className="text-sm">
-                      The correct answer is <strong>{String.fromCharCode(65 + currentQuestion.correctAnswer)}</strong>.
+
+                  {currentQuestion.explanation && (
+                    <div className="pt-2 border-t border-border/30">
+                      <div className="text-sm">
+                        <div className="font-medium mb-1">Explanation:</div>
+                        <div className="whitespace-pre-line leading-relaxed text-muted-foreground">
+                          {currentQuestion.explanation}
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
               </div>
-              {currentQuestion.explanation && (
-                <div className="mt-3 pt-3 border-t border-border/50">
-                  <div className="text-sm space-y-1">
-                    <div className="font-medium">Explanation:</div>
-                    <div className="whitespace-pre-line leading-relaxed">{currentQuestion.explanation}</div>
-                  </div>
-                </div>
-              )}
             </Alert>
           )}
 
@@ -334,7 +450,7 @@ export function TestInterface({ test, onTestComplete, onExit }: TestInterfacePro
           </span>
         </div>
 
-        {currentQuestionIndex === test.questions.length - 1 ? (
+        {currentQuestionIndex === shuffledQuestions.length - 1 ? (
           <Button onClick={goToNextQuestion} disabled={currentResult.selectedAnswer === null} className="gap-2">
             Finish Test
           </Button>
